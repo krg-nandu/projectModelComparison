@@ -5,36 +5,26 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from config import Config
 from cmodel import cModel, simplex_loss
-
-# This data structure is used when we try to train models from
-# pre simulated data. i.e., when training mode is 'offline'
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.n_datapoints = cfg.train_data.shape[0]
-
-        self.train_data = self.cfg.train_data.astype(np.float32)
-        self.train_labels = self.cfg.train_labels.astype(np.float32)
-
-    def __len__(self):
-        return self.n_datapoints
-
-    def __getitem__(self, index):
-        return np.expand_dims(self.train_data[index], 0), self.train_labels[index]
-
+from utils import OfflineDataset, OnlineDataset
 
 def train_simplex(args):
-    device = torch.device('cuda:0')
 
     cfg = Config()
-    cfg.prepareTrainData()    
+    device = torch.device(cfg.device)
 
-    training_set = Dataset(cfg)
+    # Determine whether we use presimulated data or do it on-the-fly
+    if args.offline:
+        cfg.prepareTrainData()    
+        training_set = OfflineDataset(cfg)
+    else:
+        training_set = OnlineDataset(cfg)
+
     training_generator = torch.utils.data.DataLoader(training_set, **cfg.params)
 
     sample, _ = training_set.__getitem__(0)
     sample = torch.tensor(sample).unsqueeze(0)
 
+    # Build the model and specify the training objective
     model = cModel(sample, cfg.n_models)    
     loss_fn = simplex_loss
 

@@ -28,10 +28,10 @@ class Config:
 
     def prepareTrainData(self):
         cache_file = os.path.join('cache', self.cmodel_name+'.p')
+
         # check the cache first to see if meta data exists
         if os.path.exists(cache_file + '.pbz2'):
             print('Loading from cache...')
-            #X = pickle.load(open(cache_file, 'rb'))
 
             data = bz2.BZ2File(cache_file + '.pbz2', 'rb')
             X = cPickle.load(data)
@@ -48,7 +48,6 @@ class Config:
                         )
             files = glob.glob(file_path)
             for f in tqdm.tqdm(files[:10]):
-                #import ipdb; ipdb.set_trace()
                 X = pickle.load(open(f, 'rb'))
                 data = X[1].astype(np.float32)
                 
@@ -65,7 +64,6 @@ class Config:
         print('Writing cache entry...')
         X = {}
         X.update({'train_data': self.train_data, 'train_labels': self.train_labels})
-        #pickle.dump(X, open(cache_file, 'wb'))
 
         with bz2.BZ2File(cache_file + '.pbz2', 'w') as f: 
             cPickle.dump(X, f)
