@@ -5,19 +5,26 @@ import _pickle as cPickle
 
 class Config:
     def __init__(self):
-        #self.cmodel_name = 'pilot_ddm_angle' #'pilot_multi_model'
-        #self.n_models = 2
-        #self.model_names = ['ddm', 'angle']
-
         self.cmodel_name = 'pilot_multi_model'
         self.n_models = 5
-        self.model_names = ['ddm', 'angle', 'ornstein', 'weibull', 'levy']
-        
+        self.model_names = ['ddm', 'angle', 'ornstein', 'weibull', 'levy']        
         self.data_path = '/media/data_cifs/projects/prj_approx-bayes/projectABC/data'
 
-
         # will be populated on prepareTrainData() call
+        # if training mode is set to 'offline'
         self.train_data, self.train_labels = [], []
+
+        # device settings
+        self.device = 'cuda:0'
+
+        # Training hyperparameters
+        self.optimizer = 'Adam' # 'SGD'
+        self.params = {
+                    'batch_size': 8192,
+                    'shuffle': True,
+                    'num_workers': 1
+                    }
+        self.max_epochs = 250
 
     def prepareTrainData(self):
         cache_file = os.path.join('cache', self.cmodel_name+'.p')

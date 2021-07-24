@@ -1,21 +1,18 @@
 import torch
 import numpy as np
-import glob, os, pickle
-
+import glob, os, pickle, argparse
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
 from config import Config
 from cmodel import cModel, simplex_loss
 
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
-
+# This data structure is used when we try to train models from
+# pre simulated data. i.e., when training mode is 'offline'
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, cfg):
         self.cfg = cfg
         self.n_datapoints = cfg.train_data.shape[0]
 
-        #rand_index = np.random.randint(self.n_datapoints, size=(self.n_datapoints,))
-        #self.train_data = self.cfg.train_data[rand_index].astype(np.float32)
-        #self.train_labels = self.cfg.train_labels[rand_index].astype(np.float32)
         self.train_data = self.cfg.train_data.astype(np.float32)
         self.train_labels = self.cfg.train_labels.astype(np.float32)
 
@@ -26,29 +23,25 @@ class Dataset(torch.utils.data.Dataset):
         return np.expand_dims(self.train_data[index], 0), self.train_labels[index]
 
 
-def main():
+def train_simplex(args):
     device = torch.device('cuda:0')
 
     cfg = Config()
     cfg.prepareTrainData()    
 
-    params = {'batch_size': 8192,
-              'shuffle': True,
-              'num_workers': 1}
-    max_epochs = 250
-
     training_set = Dataset(cfg)
-    training_generator = torch.utils.data.DataLoader(training_set, **params)
+    training_generator = torch.utils.data.DataLoader(training_set, **cfg.params)
 
     sample, _ = training_set.__getitem__(0)
     sample = torch.tensor(sample).unsqueeze(0)
 
     model = cModel(sample, cfg.n_models)    
-
     loss_fn = simplex_loss
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-    #optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=0.9)
+    if cfg.optimizer == 'Adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+    elif cfg.optimizer == 'SGD':
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=0.9)
 
     model = model.to(device)
     model = model.train()
@@ -57,7 +50,7 @@ def main():
     annealing_step = torch.tensor(10. * training_generator.__len__())
     beta = torch.tensor(np.ones((1,cfg.n_models), dtype=np.float32)).to(device)
 
-    for epoch in range(max_epochs):
+    for epoch in range(cfg.max_epochs):
         # training loop
         for cnt, (batch, lab) in enumerate(training_generator):
             # get a batch of data, transfer over to the device  
@@ -88,9 +81,9 @@ def main():
     torch.save(model.state_dict(), 'models/{}.pth'.format(cfg.cmodel_name))
 
 
-def inference():
-    device = torch.device('cuda:0')
+def eval_simplex(args):
     cfg = Config()
+    device = torch.device(cfg.device)
 
     model = cModel(test_input=None, n_classes=cfg.n_models)    
     model.load_state_dict(torch.load('models/{}.pth'.format(cfg.cmodel_name)))
@@ -128,5 +121,19 @@ def inference():
     plt.show()
 
 if __name__ == '__main__':
-    #main()
-    inference()
+    parser = argparse.ArgumentParser(prog='frobble')
+    parser.add_argument('--train_simplex', action='store_true',
+                     help='train the classification model')
+    parser.add_argument('--eval_simplex', action='store_true',
+                     help='run inference on the classification model')
+    parser.add_argument('--offline', action='store_true',
+                     help='Use presimulated data to train the classification model')
+
+    args = parser.parse_args()
+
+    if args.train_simplex:
+        train_simplex(args)
+    elif args.eval_simplex:
+        eval_simplex(args)
+    else:
+        raise NotImplementedError
